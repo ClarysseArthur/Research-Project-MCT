@@ -1,128 +1,141 @@
 from queue import Queue
-import queue
 from Car import Car
-from Trafficlight import TrafficLight
 
 import numpy as np
 
-import time
 
 class Intersection():
-    ###
-    # Intersection class
-    # ---
-    # This class is used to simulate an intersection
-    # ---
-    # @param number_directions:                 Number of directions the intersection has - same as len(lanes)
-    # @param lanes:                             List of lanes that are connected to the intersection - lanes[0] is the lane that is connected to the intersection from the top
-    # @param nrof_trafficlights_per_direction:  Number of trafficlights per direction - nrof_trafficlights_per_direction[0] is the number of trafficlights for the top direction
-    # @param traffic_lights:                    List of traffic lights that are connected to the intersection - Order is defined in nrof_trafficlights_per_direction
-    #
-    ###
-    def __init__(self, number_directions, lanes, nrof_trafficlights_per_direction, traffic_lights):
-        self.number_directions = number_directions
+    def __init__(self, approaches, exits):
+        self.approaches = approaches
+        self.exits = exits
 
-        # lanes = [2, 3, 2, 3]
-        self.north_lane = [None] * lanes[0]
-        self.east_lane = [None] * lanes[1]
-        self.south_lane = [None] * lanes[2]
-        self.west_lane = [None] * lanes[3]
+    def generate_traffic(self, number_of_cars_to_generate):
+        approach_lanes = sorted((set([approach.get_length() for approach in self.approaches])), reverse=True)
+        number_of_directions = [approach.get_directions() for approach in self.approaches]
 
-        # nrof_trafficlights_per_direction = [1, 2, 2, 1]
-        for i in nrof_trafficlights_per_direction:
-            
-
-
-
-
-
-        self.sides = ['N', 'E', 'S', 'W']
-        self.possible = [['ES', 'W'], ['NW', 'W', 'S'], ['NE', 'W'], ['ES', 'E', 'N']]
-        self.nr_lanes = [2, 3, 2, 3]
-        self.green_posssible = ['N-ESW', 'E-NW', 'E-S', 'S-NEW', 'W-NS', 'W-E'] # = light id
-
-        self.north_lane = [Queue(), Queue()] # 2 lanes
-        self.east_lane = [Queue(), Queue(), Queue()] # 3 lanes
-        self.south_lane = [Queue(), Queue()] # 2 lanes
-        self.west_lane = [Queue(), Queue(), Queue()] # 3 lanes
-
-        # Lights
-        self.north_light = TrafficLight(0, 10, 10, 0, 0, 1, 0, 2, 0)
-        self.east_light = TrafficLight(1, 10, 10, 0, 0, 1, 0, 2, 0)
-
-    def generate_cars(self):
-        if np.random.rand() > 0.75:
-            if np.random.rand() < 0.5: 
-                #!------North------!#
-                lane = np.random.randint(0, 2)
-                self.north_lane[lane].put(Car('N', self.possible[0][lane]))
-            else:
-                #!------South------!#
-                lane = np.random.randint(0, 2)
-                self.south_lane[lane].put(Car('S', self.possible[2][lane]))
-
-        else:
-            if np.random.rand() < 0.5:
-                #!------East------!#
-                lane = np.random.randint(0, 3)
-                self.east_lane[lane].put(Car('E', self.possible[1][lane]))
-            else:
-                #!------west------!#
-                lane = np.random.randint(0, 3)
-                self.west_lane[lane].put(Car('W', self.possible[3][lane]))
-
-    def clear_green_light(self, light_id, time_s):
-        current_time = int(time.time() * 1000)
-        end_time = current_time + (time_s * 1000)
-        i = 0
-
-        while end_time > current_time:
-            i += 1
-            self.clear_queue(light_id)
-            current_time = int(time.time() * 1000)
-            print('#' * i, end='\r')
-        print('')
-
-    def clear_queue(self, light_id):
-        #['N-ESW', 'E-NW', 'E-S', 'S-NEW', 'W-ES', 'W-N']
-        match light_id:
-            case 0:
-                car1 = self.north_lane[0].get()
-                car2 = self.north_lane[1].get()
-                time.sleep(np.average([car1.time, car2.time]))
-
+        split = 0
+        match len(approach_lanes):
             case 1:
-                car1 = self.east_lane[0].get()
-                car2 = self.east_lane[1].get()
-                time.sleep(np.average([car1.time, car2.time]))
-
+                split = [1, 0, 0, 0]
             case 2:
-                car = self.east_lane[2].get()
-                time.sleep(car.time)
-                
+                split = [0.75, 1, 0, 0]
             case 3:
-                car1 = self.south_lane[0].get()
-                car2 = self.south_lane[1].get()
-                time.sleep(np.average([car1.time, car2.time]))
-
+                split = [0.5, 0.8, 1, 0]
             case 4:
-                car1 = self.west_lane[0].get()
-                car2 = self.west_lane[1].get()
-                time.sleep(np.average([car1.time, car2.time]))
+                split = [0.4, 0.7, 0.9, 1]
 
-            case 5:
-                car = self.west_lane[2].get()
-                time.sleep(car.time)
+        for i in range(number_of_cars_to_generate):
+            rand = np.random.rand()
 
-    def print_queues(self):
-        # Print size of queus 
-        print('North: ', self.north_lane[0].qsize(), self.north_lane[1].qsize())
-        print('East: ', self.east_lane[0].qsize(), self.east_lane[1].qsize(), self.east_lane[2].qsize())
-        print('South: ', self.south_lane[0].qsize(), self.south_lane[1].qsize())
-        print('West: ', self.west_lane[0].qsize(), self.west_lane[1].qsize(), self.west_lane[2].qsize())
+            if rand <= split[0]:
+                approach = np.random.choice([approach for approach in self.approaches if approach.get_length() == approach_lanes[0]])
+                lane = np.random.choice(approach.lanes)
+                lane.add_vehicle(Car(approach.side, np.random.choice(lane.direction)))
 
-intersection = Intersection()
-intersection.generate_cars()
-intersection.print_queues()
-intersection.clear_green_light(0, 15)
-intersection.print_queues()
+            elif rand <= split[1]:
+                approach = np.random.choice([approach for approach in self.approaches if approach.get_length() == approach_lanes[1]])
+                lane = np.random.choice(approach.lanes)
+                lane.add_vehicle(Car(approach.side, np.random.choice(lane.direction)))
+
+            elif rand <= split[2]:
+                approach = np.random.choice([approach for approach in self.approaches if approach.get_length() == approach_lanes[2]])
+                lane = np.random.choice(approach.lanes)
+                lane.add_vehicle(Car(approach.side, np.random.choice(lane.direction)))
+                
+            elif rand <= split[3]:
+                approach = np.random.choice([approach for approach in self.approaches if approach.get_length() == approach_lanes[3]])
+                lane = np.random.choice(approach.lanes)
+                lane.add_vehicle(Car(approach.side, np.random.choice(lane.direction)))
+                
+
+        # if np.random.rand() > 0.75:
+        #     if np.random.rand() < 0.5: 
+        #         #!------North------!#
+        #         lane = np.random.randint(0, 2)
+        #         self.north_lane[lane].put(Car('N', self.possible[0][lane]))
+        #     else:
+        #         #!------South------!#
+        #         lane = np.random.randint(0, 2)
+        #         self.south_lane[lane].put(Car('S', self.possible[2][lane]))
+
+        # else:
+        #     if np.random.rand() < 0.5:
+        #         #!------East------!#
+        #         lane = np.random.randint(0, 3)
+        #         self.east_lane[lane].put(Car('E', self.possible[1][lane]))
+        #     else:
+        #         #!------west------!#
+        #         lane = np.random.randint(0, 3)
+        #         self.west_lane[lane].put(Car('W', self.possible[3][lane]))
+
+    def get_cars_per_lane(self):
+        cars = {}
+        for approach in self.approaches:
+            cars_per_approach = []
+            for lane in approach.lanes:
+                cars_per_approach.append(lane.get_cars())
+            cars[approach.side] = cars_per_approach
+        return cars
+
+class Approach:
+    def __init__(self, side, lanes, angle):
+        self.side = side
+        self.angle = angle
+        self._lanes = lanes
+
+    def get_length(self):
+        return len(self.lanes)
+
+    def get_directions(self):
+        return [lane.direction for lane in self.lanes]
+
+    def get_lane_with_direction(self, direction):
+        return [lane for lane in self.lanes if lane.direction == direction]
+
+    @property
+    def lanes(self):
+        return self._lanes
+
+class Exit():
+    def __init__(self, side, lanes):
+        self.side = side
+        self.lanes = lanes
+
+class Lane:
+    # @param direction  S = 0, R = 1, L = 2
+    def __init__(self, direction, traffic_light, is_exit, exits):
+        self._direction = direction
+        self.traffic_light = traffic_light
+        self.is_exit = is_exit
+        self.exits = exits
+        self.queue = Queue()
+
+    def add_vehicle(self, vehicle):
+        self.queue.put(vehicle)
+
+    def get_cars(self):
+        return self.queue.qsize()
+
+    @property
+    def direction(self):
+        return self._direction
+
+# ---
+class Trafficlight():
+    # @param direction  S = 0, R = 1, L = 2
+    def __init__(self, id, time_green, time_red, direction = 0, top_bulb_color = 0, middle_bulb_color = 1, bottom_bulb_color = 2):
+        self.id = id
+        self.time_green = time_green
+        self.time_red = time_red
+
+        self.top_bulb = TrafficlightBulb(top_bulb_color, direction)
+        self.middle_bulb = TrafficlightBulb(middle_bulb_color, direction)
+        self.bottom_bulb = TrafficlightBulb(bottom_bulb_color, direction)
+
+
+class TrafficlightBulb():
+    # @param direction  S = 0, R = 1, L = 2
+    # @param color      R = 0, Y = 1, G = 2
+    def __init__(self, color, direction = 0):
+        self.color = color
+        self.direction = direction
