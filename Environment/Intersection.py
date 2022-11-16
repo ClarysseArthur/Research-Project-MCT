@@ -5,9 +5,10 @@ import numpy as np
 
 
 class Intersection():
-    def __init__(self, approaches, exits):
+    def __init__(self, approaches, exits, traffic_light_groups):
         self.approaches = approaches
         self.exits = exits
+        self.traffic_light_groups = traffic_light_groups
 
     def generate_traffic(self, number_of_cars_to_generate):
         approach_lanes = sorted((set([approach.get_length() for approach in self.approaches])), reverse=True)
@@ -46,27 +47,6 @@ class Intersection():
                 approach = np.random.choice([approach for approach in self.approaches if approach.get_length() == approach_lanes[3]])
                 lane = np.random.choice(approach.lanes)
                 lane.add_vehicle(Car(approach.side, np.random.choice(lane.direction)))
-                
-
-        # if np.random.rand() > 0.75:
-        #     if np.random.rand() < 0.5: 
-        #         #!------North------!#
-        #         lane = np.random.randint(0, 2)
-        #         self.north_lane[lane].put(Car('N', self.possible[0][lane]))
-        #     else:
-        #         #!------South------!#
-        #         lane = np.random.randint(0, 2)
-        #         self.south_lane[lane].put(Car('S', self.possible[2][lane]))
-
-        # else:
-        #     if np.random.rand() < 0.5:
-        #         #!------East------!#
-        #         lane = np.random.randint(0, 3)
-        #         self.east_lane[lane].put(Car('E', self.possible[1][lane]))
-        #     else:
-        #         #!------west------!#
-        #         lane = np.random.randint(0, 3)
-        #         self.west_lane[lane].put(Car('W', self.possible[3][lane]))
 
     def get_cars_per_lane(self):
         cars = {}
@@ -77,6 +57,19 @@ class Intersection():
             cars[approach.side] = cars_per_approach
         return cars
 
+    # Input = range 0 - number of traffic light groups
+    def step(self, option):
+        # Check if other traffic light groups are not the same as the current one
+        check_list = []
+        for i in range(len(self.traffic_light_groups)):
+            if i != option:
+                check_list.append(self.traffic_light_groups[i].get_state())
+
+        if check_list.count(not self.traffic_light_groups[option].get_state()) == 0 or self.traffic_light_groups[option].get_state() == True:
+            self.traffic_light_groups[option].toggle()
+        else:
+            print('Traffic light group is not allowed to change')
+        
 class Approach:
     def __init__(self, side, lanes, angle):
         self.side = side
@@ -116,11 +109,13 @@ class Lane:
     def get_cars(self):
         return self.queue.qsize()
 
+    def toggle_traffic_light(self):
+        self.traffic_light.toggle_state()
+
     @property
     def direction(self):
         return self._direction
 
-# ---
 class Trafficlight():
     # @param direction  S = 0, R = 1, L = 2
     def __init__(self, id, time_green, time_red, direction = 0, top_bulb_color = 0, middle_bulb_color = 1, bottom_bulb_color = 2):
@@ -128,10 +123,20 @@ class Trafficlight():
         self.time_green = time_green
         self.time_red = time_red
 
+        self.state = False
+
         self.top_bulb = TrafficlightBulb(top_bulb_color, direction)
         self.middle_bulb = TrafficlightBulb(middle_bulb_color, direction)
         self.bottom_bulb = TrafficlightBulb(bottom_bulb_color, direction)
 
+    def get_state(self):
+        return self.state
+
+    def toggle_state(self):
+        self.state = not self.state
+
+    def __str__():
+        return f"Trafficlight {self.id}, state: {self.state}, time_green: {self.time_green}, time_red: {self.time_red}"
 
 class TrafficlightBulb():
     # @param direction  S = 0, R = 1, L = 2
@@ -139,3 +144,23 @@ class TrafficlightBulb():
     def __init__(self, color, direction = 0):
         self.color = color
         self.direction = direction
+
+class TrafficLightGroup():
+    def __init__(self, traffic_lights):
+        self.traffic_lights = traffic_lights
+
+    def check_compatibilty(self, traffic_light):
+        if traffic_light in self.traffic_lights:
+            return True
+        else:
+            return False
+
+    def toggle(self):
+        for traffic_light in self.traffic_lights:
+            traffic_light.toggle_state()
+
+    def get_state(self):
+        if True in [traffic_light.get_state() for traffic_light in self.traffic_lights]:
+            return True
+        else:
+            return False
