@@ -1,5 +1,7 @@
 from queue import Queue
+import time
 from Car import Car
+from threading import Thread
 
 import numpy as np
 
@@ -42,7 +44,7 @@ class Intersection():
                 approach = np.random.choice([approach for approach in self.approaches if approach.get_length() == approach_lanes[2]])
                 lane = np.random.choice(approach.lanes)
                 lane.add_vehicle(Car(approach.side, np.random.choice(lane.direction)))
-                
+    
             elif rand <= split[3]:
                 approach = np.random.choice([approach for approach in self.approaches if approach.get_length() == approach_lanes[3]])
                 lane = np.random.choice(approach.lanes)
@@ -69,6 +71,9 @@ class Intersection():
             self.traffic_light_groups[option].toggle()
         else:
             print('Traffic light group is not allowed to change')
+
+    def __str__(self):
+        return f'Approaches: {self.approaches}, Exits: {self.exits}, Traffic light groups: {self.traffic_light_groups}'
         
 class Approach:
     def __init__(self, side, lanes, angle):
@@ -85,6 +90,9 @@ class Approach:
     def get_lane_with_direction(self, direction):
         return [lane for lane in self.lanes if lane.direction == direction]
 
+    def __str__(self):
+        return f'Side: {self.side}, Angle: {self.angle}, Lanes: {self.lanes}'
+
     @property
     def lanes(self):
         return self._lanes
@@ -94,6 +102,9 @@ class Exit():
         self.side = side
         self.lanes = lanes
 
+    def __str__(self):
+        return f'Side: {self.side}, Lanes: {self.lanes}'
+
 class Lane:
     # @param direction  S = 0, R = 1, L = 2
     def __init__(self, direction, traffic_light, is_exit, exits):
@@ -102,6 +113,8 @@ class Lane:
         self.is_exit = is_exit
         self.exits = exits
         self.queue = Queue()
+        thread = Thread(target=self.clear_queue)
+        thread.start()
 
     def add_vehicle(self, vehicle):
         self.queue.put(vehicle)
@@ -112,31 +125,45 @@ class Lane:
     def toggle_traffic_light(self):
         self.traffic_light.toggle_state()
 
+    def clear_queue(self):
+        print('Run')
+        if not self.is_exit:
+            print(self.traffic_light.get_state())
+            while True:
+                while self.traffic_light.get_state() == True:
+                    car = self.queue.get()
+                    time.sleep(car.time)
+
+    def __str__(self):
+        return f'Direction: {self.direction}, Traffic light: {self.traffic_light}, Is exit: {self.is_exit}, Exits: {self.exits}'
+
     @property
     def direction(self):
         return self._direction
 
 class Trafficlight():
     # @param direction  S = 0, R = 1, L = 2
-    def __init__(self, id, time_green, time_red, direction = 0, top_bulb_color = 0, middle_bulb_color = 1, bottom_bulb_color = 2):
+    def __init__(self, id, direction = 0, top_bulb_color = 0, middle_bulb_color = 1, bottom_bulb_color = 2):
         self.id = id
-        self.time_green = time_green
-        self.time_red = time_red
-
-        self.state = False
+        self._state = False
 
         self.top_bulb = TrafficlightBulb(top_bulb_color, direction)
         self.middle_bulb = TrafficlightBulb(middle_bulb_color, direction)
         self.bottom_bulb = TrafficlightBulb(bottom_bulb_color, direction)
 
     def get_state(self):
-        return self.state
+        return self._state
 
     def toggle_state(self):
-        self.state = not self.state
+        self._state = not self._state
+        print(f'State changed from {not self.state} to {self.state}')
 
-    def __str__():
-        return f"Trafficlight {self.id}, state: {self.state}, time_green: {self.time_green}, time_red: {self.time_red}"
+    def __str__(self):
+        return f"Trafficlight {self.id}, State: {self.state}, Light bulbs: {self.top_bulb}, {self.middle_bulb}, {self.bottom_bulb}"
+
+    @property
+    def state(self):
+        return self._state
 
 class TrafficlightBulb():
     # @param direction  S = 0, R = 1, L = 2
@@ -144,6 +171,9 @@ class TrafficlightBulb():
     def __init__(self, color, direction = 0):
         self.color = color
         self.direction = direction
+
+    def __str__(self):
+        return f"Color: {self.color}, Direction: {self.direction}"
 
 class TrafficLightGroup():
     def __init__(self, traffic_lights):
@@ -164,3 +194,6 @@ class TrafficLightGroup():
             return True
         else:
             return False
+
+    def __str__(self):
+        return f"Traffic lights: {self.traffic_lights}"
