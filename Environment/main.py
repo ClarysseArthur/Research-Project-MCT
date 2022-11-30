@@ -75,3 +75,7 @@ intersection.step(1)
 print(intersection.get_cars_per_lane())
 time.sleep(10)
 print(intersection.get_cars_per_lane())
+
+
+# Variable car generation
+# totale reward in functie van wachttijd

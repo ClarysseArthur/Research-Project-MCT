@@ -2,6 +2,7 @@ from queue import Queue
 import time
 from Car import Car
 from threading import Thread
+from collections import Counter
 
 import numpy as np
 
@@ -12,43 +13,72 @@ class Intersection():
         self.exits = exits
         self.traffic_light_groups = traffic_light_groups
 
+        self.waiting_cars_at_start = 0
+
     def generate_traffic(self, number_of_cars_to_generate):
         approach_lanes = sorted((set([approach.get_length() for approach in self.approaches])), reverse=True)
         number_of_directions = [approach.get_directions() for approach in self.approaches]
+        number_of_approaches_per_lane = Counter([approach.get_length() for approach in self.approaches])
 
-        split = 0
-        match len(approach_lanes):
-            case 1:
-                split = [1, 0, 0, 0]
-            case 2:
-                split = [0.75, 1, 0, 0]
-            case 3:
-                split = [0.5, 0.8, 1, 0]
-            case 4:
-                split = [0.4, 0.7, 0.9, 1]
+        intersection_lane_info = []
+        for x in approach_lanes:
+            intersection_lane_info.append([x, number_of_approaches_per_lane[x] - 1])
+
+        split = self.calculate_natural_traffic(intersection_lane_info)
 
         for i in range(number_of_cars_to_generate):
             rand = np.random.rand()
 
             if rand <= split[0]:
-                approach = np.random.choice([approach for approach in self.approaches if approach.get_length() == approach_lanes[0]])
+                approach = np.random.choice(
+                    [approach for approach in self.approaches if approach.get_length() == approach_lanes[0]])
                 lane = np.random.choice(approach.lanes)
-                lane.add_vehicle(Car(approach.side, np.random.choice(lane.direction)))
+                lane.add_vehicle(
+                    Car(approach.side, np.random.choice(lane.direction)))
 
             elif rand <= split[1]:
-                approach = np.random.choice([approach for approach in self.approaches if approach.get_length() == approach_lanes[1]])
+                approach = np.random.choice(
+                    [approach for approach in self.approaches if approach.get_length() == approach_lanes[1]])
                 lane = np.random.choice(approach.lanes)
-                lane.add_vehicle(Car(approach.side, np.random.choice(lane.direction)))
+                lane.add_vehicle(
+                    Car(approach.side, np.random.choice(lane.direction)))
 
             elif rand <= split[2]:
-                approach = np.random.choice([approach for approach in self.approaches if approach.get_length() == approach_lanes[2]])
+                approach = np.random.choice(
+                    [approach for approach in self.approaches if approach.get_length() == approach_lanes[2]])
                 lane = np.random.choice(approach.lanes)
-                lane.add_vehicle(Car(approach.side, np.random.choice(lane.direction)))
-    
+                lane.add_vehicle(
+                    Car(approach.side, np.random.choice(lane.direction)))
+
             elif rand <= split[3]:
-                approach = np.random.choice([approach for approach in self.approaches if approach.get_length() == approach_lanes[3]])
+                approach = np.random.choice(
+                    [approach for approach in self.approaches if approach.get_length() == approach_lanes[3]])
                 lane = np.random.choice(approach.lanes)
-                lane.add_vehicle(Car(approach.side, np.random.choice(lane.direction)))
+                lane.add_vehicle(
+                    Car(approach.side, np.random.choice(lane.direction)))
+
+    def calculate_natural_traffic(self, intersection_info):
+        if len(intersection_info) == 1:
+            return [1, 0, 0, 0]
+
+        elif len(intersection_info) == 2:
+            split_values = [[0, 0, 0.4, 0.6], [0, 0, 0.65, 0.70], [0, 0, 0.8, 0.9]]
+            return [split_values[intersection_info[0][1]][intersection_info[0][0]], 1, 0, 0]
+
+        elif len(intersection_info) == 3:
+            split_values_max = [[0, 0, 0.35, 0.45], [0, 0, 0.45, 0.5]]
+            split_values_min = [[0, 0, 0.7, 0.8], [0, 0, 0.8, 0.9]]
+            return [split_values_max[intersection_info[0][1]][intersection_info[0][0]], split_values_min[intersection_info[1][1]][intersection_info[1][0]], 1, 0]
+
+        elif len(intersection_info) == 4:
+            return [0.45, 0.65, 0.85, 1]
+
+    def get_total_cars_waiting(self):
+        total = 0
+        for approach in self.approaches:
+            for lane in approach.lanes:
+                total += lane.get_cars()
+        return total
 
     def get_cars_per_lane(self):
         cars = {}
@@ -61,20 +91,33 @@ class Intersection():
 
     # Input = range 0 - number of traffic light groups
     def step(self, option):
-        # Check if other traffic light groups are not the same as the current one
+        self.generate_traffic(10)
         check_list = []
+
         for i in range(len(self.traffic_light_groups)):
             if i != option:
                 check_list.append(self.traffic_light_groups[i].get_state())
 
         if check_list.count(not self.traffic_light_groups[option].get_state()) == 0 or self.traffic_light_groups[option].get_state() == True:
+            self.waiting_cars_at_start = self.get_total_cars_waiting()
             self.traffic_light_groups[option].toggle()
         else:
             print('Traffic light group is not allowed to change')
 
+        total_cars_cleared = self.waiting_cars_at_start - self.get_total_cars_waiting()
+
+        return np.negative(self.get_total_cars_waiting())
+
+    def close(self):
+        for approach in self.approaches:
+            for lane in approach.lanes:
+                lane.continue_thread = False
+        pass
+
     def __str__(self):
         return f'Approaches: {self.approaches}, Exits: {self.exits}, Traffic light groups: {self.traffic_light_groups}'
-        
+
+
 class Approach:
     def __init__(self, side, lanes, angle):
         self.side = side
@@ -97,6 +140,7 @@ class Approach:
     def lanes(self):
         return self._lanes
 
+
 class Exit():
     def __init__(self, side, lanes):
         self.side = side
@@ -104,6 +148,7 @@ class Exit():
 
     def __str__(self):
         return f'Side: {self.side}, Lanes: {self.lanes}'
+
 
 class Lane:
     # @param direction  S = 0, R = 1, L = 2
@@ -113,6 +158,7 @@ class Lane:
         self.is_exit = is_exit
         self.exits = exits
         self.queue = Queue()
+        self._continue_thread = True
         thread = Thread(target=self.clear_queue)
         thread.start()
 
@@ -126,10 +172,8 @@ class Lane:
         self.traffic_light.toggle_state()
 
     def clear_queue(self):
-        print('Run')
         if not self.is_exit:
-            print(self.traffic_light.get_state())
-            while True:
+            while self._continue_thread:
                 while self.traffic_light.get_state() == True:
                     car = self.queue.get()
                     time.sleep(car.time)
@@ -138,12 +182,21 @@ class Lane:
         return f'Direction: {self.direction}, Traffic light: {self.traffic_light}, Is exit: {self.is_exit}, Exits: {self.exits}'
 
     @property
+    def continue_thread(self):
+        return self._continue_thread
+
+    @continue_thread.setter
+    def continue_thread(self, value):
+        self._continue_thread = value
+
+    @property
     def direction(self):
         return self._direction
 
+
 class Trafficlight():
     # @param direction  S = 0, R = 1, L = 2
-    def __init__(self, id, direction = 0, top_bulb_color = 0, middle_bulb_color = 1, bottom_bulb_color = 2):
+    def __init__(self, id, direction=0, top_bulb_color=0, middle_bulb_color=1, bottom_bulb_color=2):
         self.id = id
         self._state = False
 
@@ -165,15 +218,17 @@ class Trafficlight():
     def state(self):
         return self._state
 
+
 class TrafficlightBulb():
     # @param direction  S = 0, R = 1, L = 2
     # @param color      R = 0, Y = 1, G = 2
-    def __init__(self, color, direction = 0):
+    def __init__(self, color, direction=0):
         self.color = color
         self.direction = direction
 
     def __str__(self):
         return f"Color: {self.color}, Direction: {self.direction}"
+
 
 class TrafficLightGroup():
     def __init__(self, traffic_lights):
