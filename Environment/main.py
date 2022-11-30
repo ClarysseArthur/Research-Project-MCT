@@ -65,17 +65,7 @@ traffic_light_group_ew_l = TrafficLightGroup([traffic_light_e_l, traffic_light_w
 
 # Intersection
 intersection = Intersection([approach_n, approach_e, approach_s, approach_w], [exit_n, exit_e, exit_s, exit_w], [traffic_light_group_ns_s, traffic_light_group_ew_s, traffic_light_group_ew_l])
-intersection.generate_traffic(1000)
+intersection.generate_traffic(100)
 
-
-print(intersection.get_cars_per_lane())
-intersection.step(1)
-time.sleep(10)
-intersection.step(1)
-print(intersection.get_cars_per_lane())
-time.sleep(10)
-print(intersection.get_cars_per_lane())
-
-
-# Variable car generation
-# totale reward in functie van wachttijd
+intersection.render()
+intersection.close()

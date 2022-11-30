@@ -5,6 +5,7 @@ from threading import Thread
 from collections import Counter
 
 import numpy as np
+from Render_CMD import render_cmd
 
 
 class Intersection():
@@ -112,7 +113,9 @@ class Intersection():
         for approach in self.approaches:
             for lane in approach.lanes:
                 lane.continue_thread = False
-        pass
+
+    def render(self):
+        render_cmd(self.approaches, self.exits)
 
     def __str__(self):
         return f'Approaches: {self.approaches}, Exits: {self.exits}, Traffic light groups: {self.traffic_light_groups}'
@@ -145,6 +148,9 @@ class Exit():
     def __init__(self, side, lanes):
         self.side = side
         self.lanes = lanes
+
+    def get_length(self):
+        return len(self.lanes)
 
     def __str__(self):
         return f'Side: {self.side}, Lanes: {self.lanes}'
