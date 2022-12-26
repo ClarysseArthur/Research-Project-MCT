@@ -1,4 +1,5 @@
 from Intersection import Lane, Approach, Intersection, Exit, Trafficlight, TrafficLightGroup
+import random
 import time
 
 # Exit N
@@ -67,5 +68,11 @@ traffic_light_group_ew_l = TrafficLightGroup([traffic_light_e_l, traffic_light_w
 intersection = Intersection([approach_n, approach_e, approach_s, approach_w], [exit_n, exit_e, exit_s, exit_w], [traffic_light_group_ns_s, traffic_light_group_ew_s, traffic_light_group_ew_l])
 intersection.generate_traffic(100)
 
-intersection.render()
-intersection.close()
+# intersection.render()
+
+action_space = [0, 1, 2, 3]
+
+for x in range(100):
+    print(intersection.step(random.choice(action_space)))
+
+print(intersection.close())

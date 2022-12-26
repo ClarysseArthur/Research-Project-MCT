@@ -1,11 +1,11 @@
 from queue import Queue
 import time
-from Car import Car
+from Environment.Car import Car
 from threading import Thread
 from collections import Counter
 
 import numpy as np
-from Render_CMD import render_cmd
+from Environment.Render_CMD import render_cmd
 
 
 class Intersection():
@@ -14,7 +14,16 @@ class Intersection():
         self.exits = exits
         self.traffic_light_groups = traffic_light_groups
 
+        self.init_approaches = approaches
+        self.init_exits = exits
+        self.init_traffic_light_groups = traffic_light_groups
+
         self.waiting_cars_at_start = 0
+
+        self.metrics = []
+
+        self.done = False
+        self.steps = 0
 
     def generate_traffic(self, number_of_cars_to_generate):
         approach_lanes = sorted((set([approach.get_length() for approach in self.approaches])), reverse=True)
@@ -82,40 +91,69 @@ class Intersection():
         return total
 
     def get_cars_per_lane(self):
-        cars = {}
+        cars = []
         for approach in self.approaches:
             cars_per_approach = []
             for lane in approach.lanes:
                 cars_per_approach.append(lane.get_cars())
-            cars[approach.side] = cars_per_approach
-        return cars
+            for x in cars_per_approach:
+                cars.append(x)
+        return np.array(cars)
 
     # Input = range 0 - number of traffic light groups
     def step(self, option):
-        self.generate_traffic(10)
         check_list = []
+        wrong_option = 0
 
-        for i in range(len(self.traffic_light_groups)):
-            if i != option:
-                check_list.append(self.traffic_light_groups[i].get_state())
-
-        if check_list.count(not self.traffic_light_groups[option].get_state()) == 0 or self.traffic_light_groups[option].get_state() == True:
-            self.waiting_cars_at_start = self.get_total_cars_waiting()
-            self.traffic_light_groups[option].toggle()
+        if self.steps < 100:
+            self.steps += 1
         else:
-            print('Traffic light group is not allowed to change')
+            self.done = True
+
+        if np.random.random() < 0.5:
+            self.generate_traffic(np.random.randint(1, 3))
+
+        if option != 0:
+            option = option - 1
+
+            for i in range(len(self.traffic_light_groups)):
+                if i != option:
+                    check_list.append(self.traffic_light_groups[i].get_state())
+
+            if check_list.count(not self.traffic_light_groups[option].get_state()) == 0 or self.traffic_light_groups[option].get_state() == True:
+                self.waiting_cars_at_start = self.get_total_cars_waiting()
+                self.traffic_light_groups[option].toggle()
+
+            else:
+                print('Traffic light group is not allowed to change')
+                wrong_option = -100
+
+        for approach in self.approaches:
+            for lane in approach.lanes:
+                lane.step()
 
         total_cars_cleared = self.waiting_cars_at_start - self.get_total_cars_waiting()
 
-        return np.negative(self.get_total_cars_waiting())
+        self.metrics.append(self.get_total_cars_waiting())
+
+        # return: state - reward - done - info
+        #                 └> reward = total_Cars_cleared - total_cars_waiting * time
+        return self.get_cars_per_lane(), total_cars_cleared - self.get_total_cars_waiting() - wrong_option, self.done, {}
 
     def close(self):
-        for approach in self.approaches:
-            for lane in approach.lanes:
-                lane.continue_thread = False
+        return self.metrics
 
     def render(self):
         render_cmd(self.approaches, self.exits)
+
+    def reset(self):
+        self.approaches = self.init_approaches
+        self.exits = self.init_exits
+        self.traffic_light_groups = self.init_traffic_light_groups
+        self.metrics = []
+        self.waiting_cars_at_start = 0
+
+        return self.get_cars_per_lane()
 
     def __str__(self):
         return f'Approaches: {self.approaches}, Exits: {self.exits}, Traffic light groups: {self.traffic_light_groups}'
@@ -135,6 +173,10 @@ class Approach:
 
     def get_lane_with_direction(self, direction):
         return [lane for lane in self.lanes if lane.direction == direction]
+
+    def step(self):
+        for lane in self.lanes:
+            lane.clear_queue()
 
     def __str__(self):
         return f'Side: {self.side}, Angle: {self.angle}, Lanes: {self.lanes}'
@@ -164,9 +206,6 @@ class Lane:
         self.is_exit = is_exit
         self.exits = exits
         self.queue = Queue()
-        self._continue_thread = True
-        thread = Thread(target=self.clear_queue)
-        thread.start()
 
     def add_vehicle(self, vehicle):
         self.queue.put(vehicle)
@@ -174,26 +213,12 @@ class Lane:
     def get_cars(self):
         return self.queue.qsize()
 
-    def toggle_traffic_light(self):
-        self.traffic_light.toggle_state()
-
-    def clear_queue(self):
-        if not self.is_exit:
-            while self._continue_thread:
-                while self.traffic_light.get_state() == True:
-                    car = self.queue.get()
-                    time.sleep(car.time)
+    def step(self):
+        if self.traffic_light.state and self.queue.qsize() > 0:
+            self.queue.get()
 
     def __str__(self):
         return f'Direction: {self.direction}, Traffic light: {self.traffic_light}, Is exit: {self.is_exit}, Exits: {self.exits}'
-
-    @property
-    def continue_thread(self):
-        return self._continue_thread
-
-    @continue_thread.setter
-    def continue_thread(self, value):
-        self._continue_thread = value
 
     @property
     def direction(self):
@@ -210,12 +235,9 @@ class Trafficlight():
         self.middle_bulb = TrafficlightBulb(middle_bulb_color, direction)
         self.bottom_bulb = TrafficlightBulb(bottom_bulb_color, direction)
 
-    def get_state(self):
-        return self._state
-
     def toggle_state(self):
         self._state = not self._state
-        print(f'State changed from {not self.state} to {self.state}')
+        # print(f'State changed from {not self.state} to {self.state}')
 
     def __str__(self):
         return f"Trafficlight {self.id}, State: {self.state}, Light bulbs: {self.top_bulb}, {self.middle_bulb}, {self.bottom_bulb}"
@@ -251,7 +273,7 @@ class TrafficLightGroup():
             traffic_light.toggle_state()
 
     def get_state(self):
-        if True in [traffic_light.get_state() for traffic_light in self.traffic_lights]:
+        if True in [traffic_light.state for traffic_light in self.traffic_lights]:
             return True
         else:
             return False
