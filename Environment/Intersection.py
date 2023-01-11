@@ -1,15 +1,20 @@
 from queue import Queue
 import time
-from Environment.Car import Car
+from Car import Car
 from threading import Thread
 from collections import Counter
 
 import numpy as np
-from Environment.Render_CMD import render_cmd
+import math
+from Render_CMD import render_cmd
+from Render_3D import render_3d
 
 
 class Intersection():
-    def __init__(self, approaches, exits, traffic_light_groups):
+    # @param u: Uitstroomvector
+    # @param i: Instroomvector
+    # @param V: Lichtcombinatie matrix
+    def __init__(self, approaches, exits, traffic_light_groups, u, i, V, a_max):
         self.approaches = approaches
         self.exits = exits
         self.traffic_light_groups = traffic_light_groups
@@ -23,49 +28,29 @@ class Intersection():
         self.metrics = []
 
         self.done = False
-        self.steps = 0
+        self.steps_done = 0
 
-    def generate_traffic(self, number_of_cars_to_generate):
-        approach_lanes = sorted((set([approach.get_length() for approach in self.approaches])), reverse=True)
-        number_of_directions = [approach.get_directions() for approach in self.approaches]
-        number_of_approaches_per_lane = Counter([approach.get_length() for approach in self.approaches])
+        self.u = np.array(u)
+        self.i = np.array(i)
+        self.V = np.array(V)
+        self.l = len(u)
+        self.prev_n = self.get_cars_per_lane()
+        self.a_max = a_max
+        self.prev_drukte = 0
 
-        intersection_lane_info = []
-        for x in approach_lanes:
-            intersection_lane_info.append([x, number_of_approaches_per_lane[x] - 1])
+        self.lanes = []
+        for approach in self.approaches:
+            for lane in approach.lanes:
+                self.lanes.append(lane)
 
-        split = self.calculate_natural_traffic(intersection_lane_info)
+        self._drukte_hist = []
 
-        for i in range(number_of_cars_to_generate):
-            rand = np.random.rand()
+    def generate_random_traffic(self, number_of_cars_to_generate):
+        for x in self.lanes:
+            for i in range(50):
+                x.add_vehicle(Car(1, 1))
 
-            if rand <= split[0]:
-                approach = np.random.choice(
-                    [approach for approach in self.approaches if approach.get_length() == approach_lanes[0]])
-                lane = np.random.choice(approach.lanes)
-                lane.add_vehicle(
-                    Car(approach.side, np.random.choice(lane.direction)))
-
-            elif rand <= split[1]:
-                approach = np.random.choice(
-                    [approach for approach in self.approaches if approach.get_length() == approach_lanes[1]])
-                lane = np.random.choice(approach.lanes)
-                lane.add_vehicle(
-                    Car(approach.side, np.random.choice(lane.direction)))
-
-            elif rand <= split[2]:
-                approach = np.random.choice(
-                    [approach for approach in self.approaches if approach.get_length() == approach_lanes[2]])
-                lane = np.random.choice(approach.lanes)
-                lane.add_vehicle(
-                    Car(approach.side, np.random.choice(lane.direction)))
-
-            elif rand <= split[3]:
-                approach = np.random.choice(
-                    [approach for approach in self.approaches if approach.get_length() == approach_lanes[3]])
-                lane = np.random.choice(approach.lanes)
-                lane.add_vehicle(
-                    Car(approach.side, np.random.choice(lane.direction)))
+        self.prev_n = self.get_cars_per_lane()
 
     def calculate_natural_traffic(self, intersection_info):
         if len(intersection_info) == 1:
@@ -100,51 +85,74 @@ class Intersection():
                 cars.append(x)
         return np.array(cars)
 
-    # Input = range 0 - number of traffic light groups
-    def step(self, option):
-        check_list = []
-        wrong_option = 0
-
-        if self.steps < 100:
-            self.steps += 1
-        else:
-            self.done = True
-
-        if np.random.random() < 0.5:
-            self.generate_traffic(np.random.randint(1, 3))
-
-        if option != 0:
-            option = option - 1
-
-            for i in range(len(self.traffic_light_groups)):
-                if i != option:
-                    check_list.append(self.traffic_light_groups[i].get_state())
-
-            if check_list.count(not self.traffic_light_groups[option].get_state()) == 0 or self.traffic_light_groups[option].get_state() == True:
-                self.waiting_cars_at_start = self.get_total_cars_waiting()
-                self.traffic_light_groups[option].toggle()
-
-            else:
-                print('Traffic light group is not allowed to change')
-                wrong_option = -100
-
+    def clear_cars(self):
         for approach in self.approaches:
             for lane in approach.lanes:
-                lane.step()
+                lane.clear()
 
-        total_cars_cleared = self.waiting_cars_at_start - self.get_total_cars_waiting()
+    def step(self, action):
+        action = np.array(action)
+        # print(action)
+        action_matrix = np.transpose(np.transpose(self.V) * action)
+        epsilon = np.sum(action)
+        
+        for x in action_matrix:
+            lanes = np.where(x != 0)[0]         # Get lanes to turn green
 
-        self.metrics.append(self.get_total_cars_waiting())
+            if len(lanes) > 0:
+                steps = x[lanes][0]             # Get time to turn green
+            else:
+                steps = 0
 
-        # return: state - reward - done - info
-        #                 └> reward = total_Cars_cleared - total_cars_waiting * time
-        return self.get_cars_per_lane(), total_cars_cleared - self.get_total_cars_waiting() - wrong_option, self.done, {}
+            for step in range(steps):
+                for lane in lanes:
+                    self.lanes[lane].step()
+
+        n = self.prev_n - (np.sum(action_matrix, 0) * self.u) + (epsilon * self.i)
+        n = np.where(n < 0, 0, n)
+        self.prev_n = n
+
+        if np.all(n <= 1):
+            drukte = 0
+        else:
+            d1 = np.sum(n**2)
+            d2 = np.sum(n)**2
+            drukte = d1 / d2
+            print('D1: ', d1, '| D2: ', d2, '| Drukte: ', drukte)
+
+        # print('n: ', n, '| n**2: ', n**2, '| np.sum(n**2): ', np.sum(n**2), '| np.sum(n)**2: ', np.sum(n)**2)
+
+        reward = 1 - drukte
+        # reward = self.prev_drukte - drukte
+
+        # if np.any(n > 100):
+        #     reward = reward - 1
+        # elif np.any(n > 50):
+        #     reward = reward - 0.5
+        # elif np.any(n > 25):
+        #     reward = reward - 0.25
+        
+
+        self.prev_drukte = drukte
+
+        print('Action: ', action, '| Sum action M', np.sum(action_matrix, 0) * self.u, '| Reward: ', round(reward, 2), '| Drukte: ', round(drukte, 2), 'n', n)
+
+        if self.steps_done < 500:
+            self.steps_done += 1
+        else:
+            self.done = True
+            self.steps_done = 0
+            print('Drukte: ', drukte)
+            self._drukte_hist.append(n)
+
+        return n, reward, self.done, {}
 
     def close(self):
         return self.metrics
 
     def render(self):
         render_cmd(self.approaches, self.exits)
+        render_3d(self.approaches, self.exits)
 
     def reset(self):
         self.approaches = self.init_approaches
@@ -152,11 +160,21 @@ class Intersection():
         self.traffic_light_groups = self.init_traffic_light_groups
         self.metrics = []
         self.waiting_cars_at_start = 0
+        self.done = False
+        self.steps = 0
+        self.clear_cars()
+        self.generate_random_traffic(50)
+        self.prev_n = self.get_cars_per_lane()
+        self.prev_drukte = 0
 
         return self.get_cars_per_lane()
 
     def __str__(self):
         return f'Approaches: {self.approaches}, Exits: {self.exits}, Traffic light groups: {self.traffic_light_groups}'
+
+    @property
+    def drukte_hist(self):
+        return self._drukte_hist
 
 
 class Approach:
@@ -214,8 +232,11 @@ class Lane:
         return self.queue.qsize()
 
     def step(self):
-        if self.traffic_light.state and self.queue.qsize() > 0:
+        if self.queue.qsize() > 0:
             self.queue.get()
+
+    def clear(self):
+        self.queue = Queue()
 
     def __str__(self):
         return f'Direction: {self.direction}, Traffic light: {self.traffic_light}, Is exit: {self.is_exit}, Exits: {self.exits}'

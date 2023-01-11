@@ -64,15 +64,18 @@ traffic_light_group_ns_s = TrafficLightGroup([traffic_light_n_r, traffic_light_n
 traffic_light_group_ew_s = TrafficLightGroup([traffic_light_e_r, traffic_light_e_m, traffic_light_w_r, traffic_light_w_m])
 traffic_light_group_ew_l = TrafficLightGroup([traffic_light_e_l, traffic_light_w_l])
 
+u = [1, 2, 3, 1, 1, 1, 1, 1, 1, 1]
+i = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+V = [[1, 1, 0, 0, 0, 1, 1, 0, 0, 0],
+     [0, 0, 1, 1, 0, 0, 0, 1, 1, 0],
+     [0, 0, 0, 0, 1, 0, 0, 0, 0, 1]]
+
+m = len(V)
+
+a_max = 5
+
 # Intersection
-intersection = Intersection([approach_n, approach_e, approach_s, approach_w], [exit_n, exit_e, exit_s, exit_w], [traffic_light_group_ns_s, traffic_light_group_ew_s, traffic_light_group_ew_l])
-intersection.generate_traffic(100)
-
-# intersection.render()
-
-action_space = [0, 1, 2, 3]
-
-for x in range(100):
-    print(intersection.step(random.choice(action_space)))
-
-print(intersection.close())
+intersection = Intersection([approach_n, approach_e, approach_s, approach_w], [exit_n, exit_e, exit_s, exit_w], [traffic_light_group_ns_s, traffic_light_group_ew_s, traffic_light_group_ew_l], u, i, V, a_max)
+intersection.render()
+# intersection.generate_random_traffic(50)
+# print(intersection.step([2, 3, 4]))

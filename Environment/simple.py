@@ -33,14 +33,21 @@ approach_w = Approach(3, [lane_w_r], 180)
 traffic_light_group_ns = TrafficLightGroup([traffic_light_n_r, traffic_light_s_r])
 traffic_light_group_ew = TrafficLightGroup([traffic_light_e_r, traffic_light_w_r])
 
-intersection = Intersection([approach_n, approach_e, approach_s, approach_w], [exit_n, exit_e, exit_s, exit_w], [traffic_light_group_ns, traffic_light_group_ew])
-intersection.generate_traffic(100)
+u = [1, 1, 1, 1]
+i = [0.3, 0.3, 0.3, 0.3]
+V = [[1, 0, 1, 0],
+     [0, 1, 0, 1]]
+e_max = 15
 
-# intersection.render()
+intersection = Intersection([approach_n, approach_e, approach_s, approach_w], [exit_n, exit_e, exit_s, exit_w], [traffic_light_group_ns, traffic_light_group_ew], u, i, V, e_max)
+intersection.render()
+# intersection.generate_traffic(100)
 
-action_space = [0, 1, 2]
+# # intersection.render()
 
-for x in range(100):
-    print(intersection.step(random.choice(action_space)))
+# action_space = [0, 1, 2]
 
-print(intersection.close())
+# for x in range(100):
+#     print(intersection.step(random.choice(action_space)))
+
+# print(intersection.close())
