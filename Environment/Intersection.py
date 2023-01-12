@@ -14,14 +14,12 @@ class Intersection():
     # @param u: Uitstroomvector
     # @param i: Instroomvector
     # @param V: Lichtcombinatie matrix
-    def __init__(self, approaches, exits, traffic_light_groups, u, i, V, a_max):
+    def __init__(self, approaches, exits, u, i, V, a_max):
         self.approaches = approaches
         self.exits = exits
-        self.traffic_light_groups = traffic_light_groups
 
         self.init_approaches = approaches
         self.init_exits = exits
-        self.init_traffic_light_groups = traffic_light_groups
 
         self.waiting_cars_at_start = 0
 
@@ -118,19 +116,24 @@ class Intersection():
             d1 = np.sum(n**2)
             d2 = np.sum(n)**2
             drukte = d1 / d2
-            print('D1: ', d1, '| D2: ', d2, '| Drukte: ', drukte)
+            # print('D1: ', d1, '| D2: ', d2, '| Drukte: ', drukte)
 
         # print('n: ', n, '| n**2: ', n**2, '| np.sum(n**2): ', np.sum(n**2), '| np.sum(n)**2: ', np.sum(n)**2)
 
         reward = 1 - drukte
         # reward = self.prev_drukte - drukte
-
-        # if np.any(n > 100):
-        #     reward = reward - 1
-        # elif np.any(n > 50):
-        #     reward = reward - 0.5
-        # elif np.any(n > 25):
-        #     reward = reward - 0.25
+        if np.any(n > 1000):
+            reward = reward - 10
+        elif np.any(n > 500):
+            reward = reward - 5
+        elif np.any(n > 250):
+            reward = reward - 2.5
+        elif np.any(n > 100):
+            reward = reward - 1
+        elif np.any(n > 50):
+            reward = reward - 0.5
+        elif np.any(n > 25):
+            reward = reward - 0.25
         
 
         self.prev_drukte = drukte
@@ -142,7 +145,7 @@ class Intersection():
         else:
             self.done = True
             self.steps_done = 0
-            print('Drukte: ', drukte)
+            # print('Drukte: ', drukte)
             self._drukte_hist.append(n)
 
         return n, reward, self.done, {}
@@ -157,7 +160,6 @@ class Intersection():
     def reset(self):
         self.approaches = self.init_approaches
         self.exits = self.init_exits
-        self.traffic_light_groups = self.init_traffic_light_groups
         self.metrics = []
         self.waiting_cars_at_start = 0
         self.done = False
@@ -170,7 +172,7 @@ class Intersection():
         return self.get_cars_per_lane()
 
     def __str__(self):
-        return f'Approaches: {self.approaches}, Exits: {self.exits}, Traffic light groups: {self.traffic_light_groups}'
+        return f'Approaches: {self.approaches}, Exits: {self.exits}'
 
     @property
     def drukte_hist(self):
@@ -258,7 +260,6 @@ class Trafficlight():
 
     def toggle_state(self):
         self._state = not self._state
-        # print(f'State changed from {not self.state} to {self.state}')
 
     def __str__(self):
         return f"Trafficlight {self.id}, State: {self.state}, Light bulbs: {self.top_bulb}, {self.middle_bulb}, {self.bottom_bulb}"
@@ -277,27 +278,3 @@ class TrafficlightBulb():
 
     def __str__(self):
         return f"Color: {self.color}, Direction: {self.direction}"
-
-
-class TrafficLightGroup():
-    def __init__(self, traffic_lights):
-        self.traffic_lights = traffic_lights
-
-    def check_compatibilty(self, traffic_light):
-        if traffic_light in self.traffic_lights:
-            return True
-        else:
-            return False
-
-    def toggle(self):
-        for traffic_light in self.traffic_lights:
-            traffic_light.toggle_state()
-
-    def get_state(self):
-        if True in [traffic_light.state for traffic_light in self.traffic_lights]:
-            return True
-        else:
-            return False
-
-    def __str__(self):
-        return f"Traffic lights: {self.traffic_lights}"
