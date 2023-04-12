@@ -19,7 +19,7 @@ After installation, you can open and run "DemoTraining.ipynb" in VS Code. Don't 
 ![DemoTraining.ipynb in VS Code](https://raw.githubusercontent.com/ClarysseArthur/Research-Project-MCT/main/rm_assets/Picture3.png?raw=true)
 
 ## Single file
-To run a pre-made intersection from a Python file, copy the Complex.py or Simple.py file to /Environment and run `python Complex.py` in the anaconda environment.
+To run a pre-made intersection from a Python file, copy the Complex.py or Simple.py file to /Environment from /IntersectionFiles and run `python Complex.py` in the anaconda environment.
 
 # 3D render
 In the Render_3d.py file is class defined with a list of approaches and exits as parameters. It automatically  calculates how many lanes each side has and stores it in `lanes_length[]`. 
