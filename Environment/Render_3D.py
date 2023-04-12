@@ -1,9 +1,18 @@
 import HarfangHighLevel as hl
 
 def render_3d(approaches, exits):
+    # Approach:
+    #   .lanes (Lane class): list of lanes in the approach
+    #           Lane:
+    #               .direction (int type) : direction car on lane is allowed to go (0 = straight, 1 = right, 2 = left)
+
+    # Exit:
+    #   .lanes: list of lanes in the exit
     hl.Init(1280, 720)
     hl.AddFpsCamera(-20, 40, -20)
+
     lanes_length = []
+    # lanes_length = number of approach + exit lanes of each side (len = 4)
 
     for i, approach in enumerate(approaches):
         lanes_length.append(approach.get_length())
@@ -13,6 +22,7 @@ def render_3d(approaches, exits):
 
     print(lanes_length)
 
+    # Loop through the 4 sides
     for i, x in enumerate(lanes_length):
         offset = 0
         if x + 1 < len(lanes_length):
